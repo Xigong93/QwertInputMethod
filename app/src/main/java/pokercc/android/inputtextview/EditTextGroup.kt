@@ -100,7 +100,7 @@ class EditTextGroup @JvmOverloads constructor(
             }
 
         }
-        it.requestFocus()// 请求焦点，弹出键盘
+//        it.requestFocus()// 请求焦点，弹出键盘
     }
     private var templateText: String? = null
 
