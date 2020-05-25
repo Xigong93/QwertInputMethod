@@ -4,24 +4,23 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
 import android.graphics.Paint
-import android.graphics.drawable.Drawable
+import android.graphics.Typeface
+import android.os.Build
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.DigitsKeyListener
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
+
 
 /**
  * 功能特点：
@@ -69,7 +68,8 @@ class EditTextGroup @JvmOverloads constructor(
                 val inputText = s?.toString() ?: ""
                 for ((i, textView) in textViews.withIndex()) {
                     textView.text = inputText.getOrNull(i)?.toString()
-                    textView.lightBottomLine = i.coerceAtMost(textViews.size - 1) == inputText.length
+                    textView.lightBottomLine =
+                        i == inputText.length.coerceAtMost(textViews.size - 1)
                 }
             }
 
@@ -86,6 +86,21 @@ class EditTextGroup @JvmOverloads constructor(
                 it.setSelection(it.text.length)
             }
         }
+
+        // 设置只能输入英文
+        it.keyListener = object : DigitsKeyListener() {
+            private val regular = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
+
+            override fun getInputType(): Int {
+                return  InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            }
+
+            override fun getAcceptedChars(): CharArray {
+                return regular.toCharArray()
+            }
+
+        }
+        it.requestFocus()// 请求焦点，弹出键盘
     }
     private var templateText: String? = null
 
@@ -143,6 +158,7 @@ class EditTextGroup @JvmOverloads constructor(
     private fun createTextView() = DashEditText(context).apply {
         setTextColor(Color.parseColor("#ff48cda1"))
         setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26f)
+        paint.typeface = Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
         isFocusableInTouchMode = true
     }
@@ -154,7 +170,8 @@ private class DashEditText @JvmOverloads constructor(
 ) : androidx.appcompat.widget.AppCompatTextView(context, attrs, defStyleAttr) {
     init {
         val paddingHorizontal = 5.0f.dpToPx().toInt()
-        setPadding(paddingHorizontal, 0, paddingHorizontal, 0)
+        val paddingVertical = 10.0f.dpToPx().toInt()
+        setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical)
     }
 
     var lightBottomLine = false
@@ -164,7 +181,7 @@ private class DashEditText @JvmOverloads constructor(
         }
     private val bottomLinePaint = Paint().also {
         it.color = 0xffE7E7E7.toInt()
-        it.strokeWidth = 1.0f.dpToPx()
+        it.strokeWidth = 2f.dpToPx()
         it.style = Paint.Style.FILL
         it.strokeCap = Paint.Cap.ROUND
     }
@@ -176,7 +193,7 @@ private class DashEditText @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val bottomLineY = height - paddingBottom - 0.5f.dpToPx()
+        val bottomLineY = height - 2f
         bottomLinePaint.color = if (lightBottomLine) {
             0xff48cda1
         } else {
