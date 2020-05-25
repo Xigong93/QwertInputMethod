@@ -70,37 +70,61 @@ class QwertInputMethod @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        val charWidth = (w - 9 * charMargin) / 10
         if (showNumber) {
-            for ((i, number) in qwertKeys.numbers.withIndex()) {
-                val charLeft = (charWidth + charMargin) * i
-                number.setBounds(
-                    charLeft.toInt(),
-                    0,
-                    (charLeft + charWidth).toInt(),
-                    charHeight.toInt()
-                )
-            }
+            layoutChars(qwertKeys.numbers, 0)
+        }
+        layoutChars(qwertKeys.line1, 1)
+        layoutChars(qwertKeys.line2, 2)
+        layoutChars(qwertKeys.line3, 3)
+
+    }
+
+    private fun layoutChars(chars: List<CharDrawable>, lineIndex: Int) {
+        val y = ((charHeight + lineMargin) * lineIndex).toInt()
+        val charWidth = (width - 9 * charMargin) / 10
+        val firstLeft = (width - (charWidth * chars.size + charMargin * (chars.size - 1))) * 0.5f
+        for ((i, char) in chars.withIndex()) {
+            val charLeft = firstLeft + (charWidth + charMargin) * i
+            char.setBounds(
+                charLeft.toInt(),
+                y,
+                (charLeft + charWidth).toInt(),
+                y + charHeight.toInt()
+            )
         }
     }
 
 
     override fun onDraw(canvas: Canvas) {
         if (showNumber) {
-            for (number in qwertKeys.numbers) {
-                number.draw(canvas)
-            }
+            drawChars(canvas, qwertKeys.numbers)
+        }
+        drawChars(canvas, qwertKeys.line1)
+        drawChars(canvas, qwertKeys.line2)
+        drawChars(canvas, qwertKeys.line3)
+    }
+
+    private fun drawChars(canvas: Canvas, chars: List<CharDrawable>) {
+        for (charDrawable in chars) {
+            charDrawable.draw(canvas)
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (showNumber) {
-            for (number in qwertKeys.numbers) {
-                if (number.onTouch(event)) return true
-            }
-        }
+        if (showNumber && onCharsTouch(event, qwertKeys.numbers)) return true
+        if (onCharsTouch(event, qwertKeys.line1)) return true
+        if (onCharsTouch(event, qwertKeys.line2)) return true
+        if (onCharsTouch(event, qwertKeys.line3)) return true
+
         return super.onTouchEvent(event)
 
+    }
+
+    private fun onCharsTouch(event: MotionEvent, chars: List<CharDrawable>): Boolean {
+        for (charDrawable in chars) {
+            if (charDrawable.onTouch(event)) return true
+        }
+        return false
     }
 
 }
@@ -146,8 +170,7 @@ private abstract class BlockDrawable(private val char: Char, private val context
     fun onTouch(event: MotionEvent): Boolean {
         val contains = bounds.contains(event.x.toInt(), event.y.toInt())
         if (contains) {
-            val actionMasked = event.actionMasked
-            when (actionMasked) {
+            when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     onCharClickListener?.onCharClickDown(char)
                 }

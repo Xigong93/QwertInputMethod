@@ -12,21 +12,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         edit_text_group.setTemplateText("ABCD")
         qwert_input_method.showNumber = true
-        qwert_input_method.inputMethodListener = object : InputMethodListener {
-            override fun onInputPreviewStart(char: Char) {
+        qwert_input_method.inputMethodListener = edit_text_group
 
-
-            }
-
-            override fun onInputPreviewEnd() {
-            }
-
-            override fun onInput(char: Char) {
-                Toast.makeText(applicationContext, "$char", Toast.LENGTH_SHORT).show()
-            }
-
-            override fun onDelete() {
-            }
-        }
     }
 }
