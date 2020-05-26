@@ -10,8 +10,10 @@ import android.text.TextPaint
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.widget.PopupWindow
 import androidx.annotation.CallSuper
 import androidx.core.content.res.ResourcesCompat
 
@@ -30,35 +32,54 @@ class QwertInputMethod @JvmOverloads constructor(
     var inputMethodListener: InputMethodListener? = null
 
     private val lines get() = if (showNumber) 4 else 3
-    private val lineMargin get() = 9.0f.dpToPx()
-    private val charHeight get() = 50.0f.dpToPx()
-    private val charMargin get() = 4.0f.dpToPx()
+    private val lineMargin get() = 12.0f.dpToPx()
+    private val charHeight get() = 48.0f.dpToPx()
+    private val charMargin get() = 5.0f.dpToPx()
+    private val charWidth get() = (width - 9 * charMargin) / 10
     private val keys = Keys(context)
     private val charDrawables = ArrayList<BlockDrawable>()
     private val backButton = FunctionButtonDrawable(
         '<',
         context,
-        ResourcesCompat.getDrawable(context.resources, R.drawable.backspace, null)!!
+        ResourcesCompat.getDrawable(context.resources, R.drawable.keyboard_backspace, null)!!
     )
 
     private fun Float.dpToPx(): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, resources.displayMetrics)
 
 
+    private var previewPopupWindow: PopupWindow? = null
     private val onCharClickListener = object : OnCharClickListener {
-        override fun onCharClickDown(char: Char) {
-            inputMethodListener?.onInputPreviewStart(char)
-
+        override fun onCharClickDown(char: BlockDrawable) {
+            inputMethodListener?.onInputPreviewStart(char.char)
+            // 显示点击预览
+//            val charView = View(context)
+//            charView.background = CharDrawable(context, char.char)
+//            previewPopupWindow = PopupWindow(charView).also {
+//                val pWidth = (charWidth * 1.3f).toInt()
+//                val pHeight = (charHeight * 1.3f).toInt()
+//                it.width = pWidth
+//                it.height = pHeight
+//                it.showAtLocation(
+//                    parent as View,
+//                    Gravity.TOP or Gravity.START,
+//                    (x + char.bounds.left - (pWidth - char.bounds.width()) * 0.5f).toInt(),
+//                    (y + char.bounds.top).toInt()
+//                )
+//            }
 
         }
 
-        override fun onCharClickUp(char: Char) {
-            inputMethodListener?.onInput(char)
+        override fun onCharClickUp(char: BlockDrawable) {
+            inputMethodListener?.onInput(char.char)
+            previewPopupWindow?.dismiss()
+            previewPopupWindow = null
         }
 
-        override fun onCharClickCancel(char: Char) {
+        override fun onCharClickCancel(char: BlockDrawable) {
             inputMethodListener?.onInputPreviewEnd()
-
+            previewPopupWindow?.dismiss()
+            previewPopupWindow = null
         }
     }
 
@@ -91,7 +112,7 @@ class QwertInputMethod @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        var line=0
+        var line = 0
         if (showNumber) {
             layoutChars(keys.numbers, line++)
         }
@@ -112,23 +133,22 @@ class QwertInputMethod @JvmOverloads constructor(
         backButton.callback = this
         charDrawables.forEach { it.onCharClickListener = onCharClickListener }
         backButton.onCharClickListener = object : OnCharClickListener {
-            override fun onCharClickDown(char: Char) {
+            override fun onCharClickDown(char: BlockDrawable) {
 
 
             }
 
-            override fun onCharClickUp(char: Char) {
+            override fun onCharClickUp(char: BlockDrawable) {
                 inputMethodListener?.onDelete()
             }
 
-            override fun onCharClickCancel(char: Char) {
+            override fun onCharClickCancel(char: BlockDrawable) {
             }
         }
     }
 
     private fun layoutChars(chars: List<CharDrawable>, lineIndex: Int) {
         val y = ((charHeight + lineMargin) * lineIndex).toInt()
-        val charWidth = (width - 9 * charMargin) / 10
         val firstLeft = (width - (charWidth * chars.size + charMargin * (chars.size - 1))) * 0.5f
         for ((i, char) in chars.withIndex()) {
             val charLeft = firstLeft + (charWidth + charMargin) * i
@@ -151,7 +171,7 @@ class QwertInputMethod @JvmOverloads constructor(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        Log.d(LOG_TAG, "onTouchEvent($event)")
+//        Log.d(LOG_TAG, "onTouchEvent($event)")
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 handleDrawable = charDrawables.firstOrNull { it.onTouch(event) }
@@ -199,12 +219,12 @@ private class Keys(private val context: Context) {
 }
 
 private interface OnCharClickListener {
-    fun onCharClickDown(char: Char)
-    fun onCharClickUp(char: Char)
-    fun onCharClickCancel(char: Char)
+    fun onCharClickDown(char: BlockDrawable)
+    fun onCharClickUp(char: BlockDrawable)
+    fun onCharClickCancel(char: BlockDrawable)
 }
 
-private abstract class BlockDrawable(private val char: Char, private val context: Context) :
+private abstract class BlockDrawable(val char: Char, private val context: Context) :
     Drawable() {
 
     private var backgroundDrawable: ShapeDrawable? = null
@@ -215,8 +235,8 @@ private abstract class BlockDrawable(private val char: Char, private val context
             MotionEvent.ACTION_DOWN -> {
                 val contains = bounds.contains(event.x.toInt(), event.y.toInt())
                 if (contains) {
-                    onCharClickListener?.onCharClickDown(char)
-                    alpha = (0.6f * 255).toInt()
+                    onCharClickListener?.onCharClickDown(this)
+                    backgroundDrawable?.paint?.color = Color.parseColor("#76D9B8")
                     invalidateSelf()
                 }
 
@@ -226,14 +246,14 @@ private abstract class BlockDrawable(private val char: Char, private val context
 
             }
             MotionEvent.ACTION_UP -> {
-                onCharClickListener?.onCharClickUp(char)
-                alpha = 255
+                onCharClickListener?.onCharClickUp(this)
+                backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
                 invalidateSelf()
             }
             MotionEvent.ACTION_CANCEL -> {
-                alpha = 255
+                backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
                 invalidateSelf()
-                onCharClickListener?.onCharClickCancel(char)
+                onCharClickListener?.onCharClickCancel(this)
             }
         }
         return true
@@ -244,13 +264,13 @@ private abstract class BlockDrawable(private val char: Char, private val context
         super.onBoundsChange(bounds)
         val radius = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            5.0f,
+            4.0f,
             context.resources.displayMetrics
         )
         val radiusArr = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
         val shape = RoundRectShape(radiusArr, null, null)
         backgroundDrawable = ShapeDrawable(shape)
-        backgroundDrawable?.paint?.color = Color.parseColor("#60000000")
+        backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
         backgroundDrawable?.bounds = bounds
     }
 
@@ -265,13 +285,13 @@ private abstract class BlockDrawable(private val char: Char, private val context
     }
 }
 
-private class CharDrawable(private val context: Context, private val char: Char) :
+private class CharDrawable(private val context: Context, char: Char) :
     BlockDrawable(char, context) {
     private val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).also { p ->
-        p.color = Color.BLACK
+        p.color = Color.parseColor("#333333")
         p.textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            16f,
+            20f,
             context.resources.displayMetrics
         )
         p.typeface = Typeface.DEFAULT_BOLD

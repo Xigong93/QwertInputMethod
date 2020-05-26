@@ -38,11 +38,11 @@ class EditTextGroup @JvmOverloads constructor(
         object StandardAnswer : ShowMode()
 
         /** 答案对比 */
-        object DiffResult : ShowMode()
+        class DiffResult(val answer: String) : ShowMode()
     }
 
     private var showMode: ShowMode = ShowMode.Input
-    private val textViews = ArrayList<DashEditText>()
+    private val textViews = ArrayList<DashTextView>()
 
     private var templateText: String? = null
 
@@ -58,7 +58,7 @@ class EditTextGroup @JvmOverloads constructor(
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, resources.displayMetrics)
 
     init {
-        orientation = LinearLayout.HORIZONTAL
+        orientation = HORIZONTAL
     }
 
     /** 设置模板字符串 */
@@ -73,7 +73,7 @@ class EditTextGroup @JvmOverloads constructor(
             textViews.add(textView)
             addView(
                 textView,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+                LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
             )
         }
 
@@ -82,13 +82,13 @@ class EditTextGroup @JvmOverloads constructor(
             textView.text = when (showMode) {
                 ShowMode.Input -> null
                 ShowMode.StandardAnswer -> templateText.getOrNull(i)?.toString()
-                ShowMode.DiffResult -> templateText.getOrNull(i)?.toString()
+                is ShowMode.DiffResult -> templateText.getOrNull(i)?.toString()
             }
         }
 
     }
 
-    private fun createTextView() = DashEditText(context).apply {
+    private fun createTextView() = DashTextView(context).apply {
         setTextColor(Color.parseColor("#ff48cda1"))
         setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26f)
         paint.typeface = Typeface.DEFAULT_BOLD
@@ -131,7 +131,7 @@ class EditTextGroup @JvmOverloads constructor(
 
 }
 
-private class DashEditText @JvmOverloads constructor(
+private class DashTextView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : androidx.appcompat.widget.AppCompatTextView(context, attrs, defStyleAttr) {
     init {
