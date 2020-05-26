@@ -1,5 +1,6 @@
 package pokercc.android.inputtextview
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.graphics.drawable.Drawable
@@ -7,6 +8,7 @@ import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RoundRectShape
 import android.text.TextPaint
 import android.util.AttributeSet
+import android.util.Log
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
@@ -21,13 +23,10 @@ class QwertInputMethod @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    /** 是否显示数字 */
-    var showNumber: Boolean = false
-        set(value) {
-            field = value
-            requestLayout()
-            invalidate()
-        }
+    private companion object {
+        private const val LOG_TAG = "QwertInputMethod"
+    }
+
     var inputMethodListener: InputMethodListener? = null
 
     private val lines get() = if (showNumber) 4 else 3
@@ -35,7 +34,12 @@ class QwertInputMethod @JvmOverloads constructor(
     private val charHeight get() = 50.0f.dpToPx()
     private val charMargin get() = 4.0f.dpToPx()
     private val keys = Keys(context)
-    private val backButton = BackSpaceDrawable('<', context)
+    private val charDrawables = ArrayList<BlockDrawable>()
+    private val backButton = FunctionButtonDrawable(
+        '<',
+        context,
+        ResourcesCompat.getDrawable(context.resources, R.drawable.backspace, null)!!
+    )
 
     private fun Float.dpToPx(): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, resources.displayMetrics)
@@ -59,24 +63,25 @@ class QwertInputMethod @JvmOverloads constructor(
     }
 
     init {
-        keys.numbers.forEach { it.onCharClickListener = onCharClickListener }
-        keys.line1.forEach { it.onCharClickListener = onCharClickListener }
-        keys.line2.forEach { it.onCharClickListener = onCharClickListener }
-        keys.line3.forEach { it.onCharClickListener = onCharClickListener }
-        backButton.onCharClickListener = object : OnCharClickListener {
-            override fun onCharClickDown(char: Char) {
+        charDrawables.addAll(keys.line1)
+        charDrawables.addAll(keys.line2)
+        charDrawables.addAll(keys.line3)
+        charDrawables.add(backButton)
 
+    }
 
-            }
-
-            override fun onCharClickUp(char: Char) {
-                inputMethodListener?.onDelete()
-            }
-
-            override fun onCharClickCancel(char: Char) {
+    /** 是否显示数字 */
+    var showNumber: Boolean = false
+        set(value) {
+            field = value
+            requestLayout()
+            invalidate()
+            if (value) {
+                charDrawables.addAll(keys.numbers)
+            } else {
+                charDrawables.removeAll(keys.numbers)
             }
         }
-    }
 
     override fun onMeasure(widthMeasureSpec: Int, h: Int) {
         val width = getDefaultSize(resources.displayMetrics.widthPixels, widthMeasureSpec)
@@ -104,7 +109,20 @@ class QwertInputMethod @JvmOverloads constructor(
             (y + charHeight).toInt()
         )
         backButton.callback = this
+        charDrawables.forEach { it.onCharClickListener = onCharClickListener }
+        backButton.onCharClickListener = object : OnCharClickListener {
+            override fun onCharClickDown(char: Char) {
 
+
+            }
+
+            override fun onCharClickUp(char: Char) {
+                inputMethodListener?.onDelete()
+            }
+
+            override fun onCharClickCancel(char: Char) {
+            }
+        }
     }
 
     private fun layoutChars(chars: List<CharDrawable>, lineIndex: Int) {
@@ -125,36 +143,24 @@ class QwertInputMethod @JvmOverloads constructor(
 
 
     override fun onDraw(canvas: Canvas) {
-        if (showNumber) {
-            drawChars(canvas, keys.numbers)
-        }
-        drawChars(canvas, keys.line1)
-        drawChars(canvas, keys.line2)
-        drawChars(canvas, keys.line3)
-        backButton.draw(canvas)
+        charDrawables.forEach { it.draw(canvas) }
     }
 
-    private fun drawChars(canvas: Canvas, chars: List<CharDrawable>) {
-        for (charDrawable in chars) {
-            charDrawable.draw(canvas)
-        }
-    }
+    private var handleDrawable: BlockDrawable? = null
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (showNumber && onCharsTouch(event, keys.numbers)) return true
-        if (onCharsTouch(event, keys.line1)) return true
-        if (onCharsTouch(event, keys.line2)) return true
-        if (onCharsTouch(event, keys.line3)) return true
-        if (backButton.onTouch(event)) return true
-        return super.onTouchEvent(event)
-
-    }
-
-    private fun onCharsTouch(event: MotionEvent, chars: List<CharDrawable>): Boolean {
-        for (charDrawable in chars) {
-            if (charDrawable.onTouch(event)) return true
+        Log.d(LOG_TAG, "onTouchEvent($event)")
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                handleDrawable = charDrawables.firstOrNull { it.onTouch(event) }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                handleDrawable?.onTouch(event)
+                handleDrawable = null
+            }
         }
-        return false
+        return handleDrawable != null
     }
 
     override fun verifyDrawable(who: Drawable): Boolean {
@@ -203,30 +209,33 @@ private abstract class BlockDrawable(private val char: Char, private val context
     private var backgroundDrawable: ShapeDrawable? = null
     var onCharClickListener: OnCharClickListener? = null
     fun onTouch(event: MotionEvent): Boolean {
-        val contains = bounds.contains(event.x.toInt(), event.y.toInt())
-        if (contains) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val contains = bounds.contains(event.x.toInt(), event.y.toInt())
+                if (contains) {
                     onCharClickListener?.onCharClickDown(char)
                     alpha = (0.6f * 255).toInt()
                     invalidateSelf()
                 }
-                MotionEvent.ACTION_MOVE -> {
 
-                }
-                MotionEvent.ACTION_UP -> {
-                    onCharClickListener?.onCharClickUp(char)
-                    alpha = 255
-                    invalidateSelf()
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    alpha = 255
-                    invalidateSelf()
-                    onCharClickListener?.onCharClickCancel(char)
-                }
+                return contains
+            }
+            MotionEvent.ACTION_MOVE -> {
+
+            }
+            MotionEvent.ACTION_UP -> {
+                onCharClickListener?.onCharClickUp(char)
+                alpha = 255
+                invalidateSelf()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                alpha = 255
+                invalidateSelf()
+                onCharClickListener?.onCharClickCancel(char)
             }
         }
-        return contains
+        return true
     }
 
     @CallSuper
@@ -301,33 +310,33 @@ private class CharDrawable(private val context: Context, private val char: Char)
     }
 }
 
-private class BackSpaceDrawable(char: Char, context: Context) : BlockDrawable(char, context) {
-    private val backSpace =
-        ResourcesCompat.getDrawable(context.resources, R.drawable.backspace, null)!!
+private class FunctionButtonDrawable(char: Char, context: Context, private val drawable: Drawable) :
+    BlockDrawable(char, context) {
+
 
     override fun setAlpha(alpha: Int) {
         super.setAlpha(alpha)
-        backSpace.alpha = alpha
+        drawable.alpha = alpha
 
     }
 
     override fun onBoundsChange(bounds: Rect) {
         super.onBoundsChange(bounds)
-        val left = (bounds.left + (bounds.width() - backSpace.intrinsicWidth) * 0.5f).toInt()
-        val top = (bounds.top + (bounds.height() - backSpace.intrinsicHeight) * 0.5f).toInt()
-        backSpace.setBounds(
-            left, top, left + backSpace.intrinsicWidth, top + backSpace.intrinsicHeight
+        val left = (bounds.left + (bounds.width() - drawable.intrinsicWidth) * 0.5f).toInt()
+        val top = (bounds.top + (bounds.height() - drawable.intrinsicHeight) * 0.5f).toInt()
+        drawable.setBounds(
+            left, top, left + drawable.intrinsicWidth, top + drawable.intrinsicHeight
         )
     }
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-        backSpace.draw(canvas)
+        drawable.draw(canvas)
     }
 
     override fun getOpacity(): Int = PixelFormat.OPAQUE
 
     override fun setColorFilter(colorFilter: ColorFilter?) {
-        backSpace.colorFilter = colorFilter
+        drawable.colorFilter = colorFilter
     }
 }
