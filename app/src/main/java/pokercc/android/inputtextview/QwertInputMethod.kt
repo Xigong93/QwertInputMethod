@@ -91,17 +91,18 @@ class QwertInputMethod @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        var line=0
         if (showNumber) {
-            layoutChars(keys.numbers, 0)
+            layoutChars(keys.numbers, line++)
         }
-        layoutChars(keys.line1, 1)
-        layoutChars(keys.line2, 2)
-        layoutChars(keys.line3, 3)
+        layoutChars(keys.line1, line++)
+        layoutChars(keys.line2, line++)
+        layoutChars(keys.line3, line)
         // 布局返回键
         val charWidth = (width - 9 * charMargin) / 10
         val backspaceWidth =
             (width - (charWidth * keys.line3.size + charMargin * (keys.line3.size + 1))) * 0.5f
-        val y = ((charHeight + lineMargin) * 3).toInt()
+        val y = ((charHeight + lineMargin) * line).toInt()
         backButton.setBounds(
             (width - backspaceWidth).toInt(),
             y,

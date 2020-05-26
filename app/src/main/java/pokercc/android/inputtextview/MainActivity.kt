@@ -11,8 +11,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         edit_text_group.setTemplateText("ABCD")
-        qwert_input_method.showNumber = true
         qwert_input_method.inputMethodListener = edit_text_group
-
+        toggle_button.setOnCheckedChangeListener { buttonView, isChecked ->
+            qwert_input_method.showNumber = isChecked
+        }
     }
 }
