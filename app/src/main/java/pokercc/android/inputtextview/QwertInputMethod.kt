@@ -195,9 +195,7 @@ interface InputMethodListener {
     /** 按下了还没有输入 */
     fun onInputPreviewStart(char: Char)
 
-    /**
-     * 抬起了
-     */
+    /** 抬起了 */
     fun onInputPreviewEnd()
 
     /** 已经输入 */
@@ -227,7 +225,20 @@ private interface OnCharClickListener {
 private abstract class BlockDrawable(val char: Char, private val context: Context) :
     Drawable() {
 
-    private var backgroundDrawable: ShapeDrawable? = null
+    private val backgroundDrawable: ShapeDrawable
+
+    init {
+        val radius = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            4.0f,
+            context.resources.displayMetrics
+        )
+        val radiusArr = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
+        val shape = RoundRectShape(radiusArr, null, null)
+        backgroundDrawable = ShapeDrawable(shape)
+        backgroundDrawable.paint.color = Color.parseColor("#F3F4F5")
+    }
+
     var onCharClickListener: OnCharClickListener? = null
     fun onTouch(event: MotionEvent): Boolean {
 
@@ -236,7 +247,7 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
                 val contains = bounds.contains(event.x.toInt(), event.y.toInt())
                 if (contains) {
                     onCharClickListener?.onCharClickDown(this)
-                    backgroundDrawable?.paint?.color = Color.parseColor("#76D9B8")
+                    backgroundDrawable.paint?.color = Color.parseColor("#76D9B8")
                     invalidateSelf()
                 }
 
@@ -247,11 +258,11 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
             }
             MotionEvent.ACTION_UP -> {
                 onCharClickListener?.onCharClickUp(this)
-                backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
+                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
                 invalidateSelf()
             }
             MotionEvent.ACTION_CANCEL -> {
-                backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
+                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
                 invalidateSelf()
                 onCharClickListener?.onCharClickCancel(this)
             }
@@ -262,26 +273,17 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
     @CallSuper
     override fun onBoundsChange(bounds: Rect) {
         super.onBoundsChange(bounds)
-        val radius = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            4.0f,
-            context.resources.displayMetrics
-        )
-        val radiusArr = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
-        val shape = RoundRectShape(radiusArr, null, null)
-        backgroundDrawable = ShapeDrawable(shape)
-        backgroundDrawable?.paint?.color = Color.parseColor("#F3F4F5")
-        backgroundDrawable?.bounds = bounds
+        backgroundDrawable.bounds = bounds
     }
 
     @CallSuper
     override fun draw(canvas: Canvas) {
-        backgroundDrawable?.draw(canvas)
+        backgroundDrawable.draw(canvas)
     }
 
     @CallSuper
     override fun setAlpha(alpha: Int) {
-        backgroundDrawable?.alpha = alpha
+        backgroundDrawable.alpha = alpha
     }
 }
 
