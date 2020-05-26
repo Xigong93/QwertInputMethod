@@ -107,6 +107,8 @@ class EditTextGroup @JvmOverloads constructor(
     private var text = StringBuilder()
 
     override fun onInput(char: Char) {
+        val t = templateText ?: return
+        if (text.length >= t.length) return
         text.append(char)
         onTextChange()
     }
@@ -121,8 +123,10 @@ class EditTextGroup @JvmOverloads constructor(
     }
 
     override fun onDelete() {
-        text.removeRange(text.length - 1, text.length)
-        onTextChange()
+        if (text.isNotEmpty()) {
+            text.delete(text.length - 1, text.length)
+            onTextChange()
+        }
     }
 
 }
