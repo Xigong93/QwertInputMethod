@@ -16,6 +16,7 @@ import android.view.View
 import android.widget.PopupWindow
 import androidx.annotation.CallSuper
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.os.TraceCompat
 
 /**
  * Qwert 键盘
@@ -106,49 +107,65 @@ class QwertInputMethod @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, h: Int) {
         val width = getDefaultSize(resources.displayMetrics.widthPixels, widthMeasureSpec)
-        val height = charHeight * lines + lineMargin * (lines - 1)
+        val height = charHeight * lines + lineMargin * lines
         setMeasuredDimension(width, height.toInt())
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        var line = 0
-        if (showNumber) {
-            layoutChars(keys.numbers, line++)
+        TraceCompat.beginSection("${LOG_TAG}:layoutDrawables")
+        try {
+            var line = 0
+            if (showNumber) {
+                layoutChars(keys.numbers, line++)
+            }
+            layoutChars(keys.line1, line++)
+            layoutChars(keys.line2, line++)
+            layoutChars(keys.line3, line)
+            // 布局返回键
+            val charWidth = (width - 9 * charMargin) / 10
+            val backspaceWidth =
+                (width - (charWidth * keys.line3.size + charMargin * (keys.line3.size + 1))) * 0.5f
+            val y = ((charHeight + lineMargin) * line).toInt() + (lineMargin / 2).toInt()
+            backButton.setBounds(
+                (width - backspaceWidth).toInt(),
+                y,
+                width,
+                (y + charHeight).toInt()
+            )
+            configTouchArea(backButton)
+            backButton.callback = this
+            charDrawables.forEach { it.onCharClickListener = onCharClickListener }
+            backButton.onCharClickListener = object : OnCharClickListener {
+                override fun onCharClickDown(char: BlockDrawable) {
+
+
+                }
+
+                override fun onCharClickUp(char: BlockDrawable) {
+                    inputMethodListener?.onDelete()
+                }
+
+                override fun onCharClickCancel(char: BlockDrawable) {
+                }
+            }
+        } finally {
+            TraceCompat.endSection()
         }
-        layoutChars(keys.line1, line++)
-        layoutChars(keys.line2, line++)
-        layoutChars(keys.line3, line)
-        // 布局返回键
-        val charWidth = (width - 9 * charMargin) / 10
-        val backspaceWidth =
-            (width - (charWidth * keys.line3.size + charMargin * (keys.line3.size + 1))) * 0.5f
-        val y = ((charHeight + lineMargin) * line).toInt()
-        backButton.setBounds(
-            (width - backspaceWidth).toInt(),
-            y,
-            width,
-            (y + charHeight).toInt()
+
+    }
+
+    private fun configTouchArea(char: BlockDrawable) {
+        char.touchArea.set(
+            char.bounds.left - (charMargin / 2).toInt(),
+            char.bounds.top - (lineMargin / 2).toInt(),
+            char.bounds.right + (charMargin / 2).toInt(),
+            char.bounds.bottom + (lineMargin / 2).toInt()
         )
-        backButton.callback = this
-        charDrawables.forEach { it.onCharClickListener = onCharClickListener }
-        backButton.onCharClickListener = object : OnCharClickListener {
-            override fun onCharClickDown(char: BlockDrawable) {
-
-
-            }
-
-            override fun onCharClickUp(char: BlockDrawable) {
-                inputMethodListener?.onDelete()
-            }
-
-            override fun onCharClickCancel(char: BlockDrawable) {
-            }
-        }
     }
 
     private fun layoutChars(chars: List<CharDrawable>, lineIndex: Int) {
-        val y = ((charHeight + lineMargin) * lineIndex).toInt()
+        val y = ((charHeight + lineMargin) * lineIndex).toInt() + (lineMargin / 2).toInt()
         val firstLeft = (width - (charWidth * chars.size + charMargin * (chars.size - 1))) * 0.5f
         for ((i, char) in chars.withIndex()) {
             val charLeft = firstLeft + (charWidth + charMargin) * i
@@ -158,13 +175,20 @@ class QwertInputMethod @JvmOverloads constructor(
                 (charLeft + charWidth).toInt(),
                 (y + charHeight).toInt()
             )
+            configTouchArea(char)
             char.callback = this
         }
     }
 
 
     override fun onDraw(canvas: Canvas) {
-        charDrawables.forEach { it.draw(canvas) }
+        TraceCompat.beginSection("${LOG_TAG}:drawAllDrawables")
+        try {
+            charDrawables.forEach { it.draw(canvas) }
+        } finally {
+            TraceCompat.endSection()
+        }
+
     }
 
     private var handleDrawable: BlockDrawable? = null
@@ -227,6 +251,8 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
 
     private val backgroundDrawable: ShapeDrawable
 
+    val touchArea = Rect()
+
     init {
         val radius = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
@@ -244,7 +270,7 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                val contains = bounds.contains(event.x.toInt(), event.y.toInt())
+                val contains = touchArea.contains(event.x.toInt(), event.y.toInt())
                 if (contains) {
                     onCharClickListener?.onCharClickDown(this)
                     backgroundDrawable.paint?.color = Color.parseColor("#76D9B8")
