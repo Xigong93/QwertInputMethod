@@ -6,6 +6,7 @@ import android.graphics.*
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RoundRectShape
+import android.os.Vibrator
 import android.text.TextPaint
 import android.util.AttributeSet
 import android.util.Log
@@ -42,6 +43,11 @@ class QwertInputMethod @JvmOverloads constructor(
         '<',
         context,
         ResourcesCompat.getDrawable(context.resources, R.drawable.keyboard_backspace, null)!!
+    )
+    private val vibrationButton = FunctionButtonDrawable(
+        '~',
+        context,
+        ResourcesCompat.getDrawable(context.resources, R.drawable.keyboard_vibration, null)!!
     )
 
     private fun Float.dpToPx(): Float =
@@ -88,6 +94,7 @@ class QwertInputMethod @JvmOverloads constructor(
         charDrawables.addAll(keys.line2)
         charDrawables.addAll(keys.line3)
         charDrawables.add(backButton)
+        charDrawables.add(vibrationButton)
 
     }
 
@@ -110,6 +117,10 @@ class QwertInputMethod @JvmOverloads constructor(
         setMeasuredDimension(width, height.toInt())
     }
 
+    /**
+     * 是否开启了震动
+     */
+    var vibrationOn: Boolean = true
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         var line = 0
@@ -143,6 +154,29 @@ class QwertInputMethod @JvmOverloads constructor(
             }
 
             override fun onCharClickCancel(char: BlockDrawable) {
+            }
+        }
+        // 布局震动按键
+        vibrationButton.setBounds(
+            0, y, backspaceWidth.toInt(), (y + charHeight).toInt()
+        )
+        vibrationButton.callback = this
+        vibrationButton.onCharClickListener = object : OnCharClickListener {
+            override fun onCharClickDown(char: BlockDrawable) {
+
+
+            }
+
+            override fun onCharClickUp(char: BlockDrawable) {
+                vibrationOn = !vibrationOn
+                char.alpha = ((if (vibrationOn) 1.0f else 0.5f) * 255).toInt()
+                charDrawables.forEach {
+                    it.vibrationOn = this@QwertInputMethod.vibrationOn
+                }
+            }
+
+            override fun onCharClickCancel(char: BlockDrawable) {
+
             }
         }
     }
@@ -226,6 +260,7 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
     Drawable() {
 
     private val backgroundDrawable: ShapeDrawable
+    var vibrationOn = true
 
     init {
         val radius = TypedValue.applyDimension(
@@ -247,8 +282,10 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
                 val contains = bounds.contains(event.x.toInt(), event.y.toInt())
                 if (contains) {
                     onCharClickListener?.onCharClickDown(this)
-                    backgroundDrawable.paint?.color = Color.parseColor("#76D9B8")
-                    invalidateSelf()
+                    setSelected(true)
+                    if (vibrationOn) {
+                        (context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(50)
+                    }
                 }
 
                 return contains
@@ -257,17 +294,20 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
 
             }
             MotionEvent.ACTION_UP -> {
+                setSelected(false)
                 onCharClickListener?.onCharClickUp(this)
-                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
-                invalidateSelf()
             }
             MotionEvent.ACTION_CANCEL -> {
-                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
-                invalidateSelf()
+                setSelected(false)
                 onCharClickListener?.onCharClickCancel(this)
             }
         }
         return true
+    }
+
+    fun setSelected(selected: Boolean) {
+        backgroundDrawable.paint?.color = Color.parseColor(if (selected) "#76D9B8" else "#F3F4F5")
+        invalidateSelf()
     }
 
     @CallSuper
