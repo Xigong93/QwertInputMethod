@@ -8,9 +8,7 @@ import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RoundRectShape
 import android.text.TextPaint
 import android.util.AttributeSet
-import android.util.Log
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.widget.PopupWindow
@@ -22,7 +20,7 @@ import androidx.core.os.TraceCompat
  * Qwert 键盘
  * @author
  */
-class QwertInputMethod @JvmOverloads constructor(
+internal class QwertInputMethod @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
@@ -39,10 +37,16 @@ class QwertInputMethod @JvmOverloads constructor(
     private val charWidth get() = (width - 9 * charMargin) / 10
     private val keys = Keys(context)
     private val charDrawables = ArrayList<BlockDrawable>()
+    private var isShift = false
     private val backButton = FunctionButtonDrawable(
         '<',
         context,
         ResourcesCompat.getDrawable(context.resources, R.drawable.keyboard_backspace, null)!!
+    )
+    private val shiftButton = FunctionButtonDrawable(
+        '^',
+        context,
+        ResourcesCompat.getDrawable(context.resources, R.drawable.keyboard_shift, null)!!
     )
 
     private fun Float.dpToPx(): Float =
@@ -52,7 +56,7 @@ class QwertInputMethod @JvmOverloads constructor(
     private var previewPopupWindow: PopupWindow? = null
     private val onCharClickListener = object : OnCharClickListener {
         override fun onCharClickDown(char: BlockDrawable) {
-            inputMethodListener?.onInputPreviewStart(char.char)
+            inputMethodListener?.onInputPreviewStart(char.inputChar)
             // 显示点击预览
 //            val charView = View(context)
 //            charView.background = CharDrawable(context, char.char)
@@ -72,7 +76,7 @@ class QwertInputMethod @JvmOverloads constructor(
         }
 
         override fun onCharClickUp(char: BlockDrawable) {
-            inputMethodListener?.onInput(char.char)
+            inputMethodListener?.onInput(char.inputChar)
             previewPopupWindow?.dismiss()
             previewPopupWindow = null
         }
@@ -89,6 +93,7 @@ class QwertInputMethod @JvmOverloads constructor(
         charDrawables.addAll(keys.line2)
         charDrawables.addAll(keys.line3)
         charDrawables.add(backButton)
+        charDrawables.add(shiftButton)
 
     }
 
@@ -149,6 +154,26 @@ class QwertInputMethod @JvmOverloads constructor(
                 override fun onCharClickCancel(char: BlockDrawable) {
                 }
             }
+            shiftButton.setBounds(0, y, backspaceWidth.toInt(), (y + charHeight).toInt())
+            configTouchArea(shiftButton)
+            shiftButton.callback = this
+            shiftButton.onCharClickListener = object : OnCharClickListener {
+                override fun onCharClickDown(char: BlockDrawable) {
+
+                }
+
+                override fun onCharClickCancel(char: BlockDrawable) {
+
+
+                }
+
+                override fun onCharClickUp(char: BlockDrawable) {
+                    isShift = !isShift
+                    shiftButton.setSelected(isShift)
+                    onShiftChange()
+                }
+
+            }
         } finally {
             TraceCompat.endSection()
         }
@@ -189,6 +214,12 @@ class QwertInputMethod @JvmOverloads constructor(
             TraceCompat.endSection()
         }
 
+    }
+
+    private fun onShiftChange() {
+        shiftButton.setSelected(isShift)
+        charDrawables.forEach { it.isShift = this@QwertInputMethod.isShift }
+        invalidate()
     }
 
     private var handleDrawable: BlockDrawable? = null
@@ -250,8 +281,11 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
     Drawable() {
 
     private val backgroundDrawable: ShapeDrawable
+    var isShift = false
 
     val touchArea = Rect()
+
+    val inputChar: Char get() = if (isShift) char.toUpperCase() else char.toLowerCase()
 
     init {
         val radius = TypedValue.applyDimension(
@@ -273,8 +307,7 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
                 val contains = touchArea.contains(event.x.toInt(), event.y.toInt())
                 if (contains) {
                     onCharClickListener?.onCharClickDown(this)
-                    backgroundDrawable.paint?.color = Color.parseColor("#76D9B8")
-                    invalidateSelf()
+                    setSelected(true)
                 }
 
                 return contains
@@ -283,17 +316,20 @@ private abstract class BlockDrawable(val char: Char, private val context: Contex
 
             }
             MotionEvent.ACTION_UP -> {
+                setSelected(false)
                 onCharClickListener?.onCharClickUp(this)
-                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
-                invalidateSelf()
             }
             MotionEvent.ACTION_CANCEL -> {
-                backgroundDrawable.paint?.color = Color.parseColor("#F3F4F5")
-                invalidateSelf()
+                setSelected(false)
                 onCharClickListener?.onCharClickCancel(this)
             }
         }
         return true
+    }
+
+    fun setSelected(selected: Boolean) {
+        backgroundDrawable.paint?.color = Color.parseColor(if (selected) "#76D9B8" else "#F3F4F5")
+        invalidateSelf()
     }
 
     @CallSuper
@@ -328,7 +364,7 @@ private class CharDrawable(private val context: Context, char: Char) :
     private val fontMetrics = Paint.FontMetrics()
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-        val c = char.toString()
+        val c = (if (isShift) char.toUpperCase() else char.toLowerCase()).toString()
         val textWidth = paint.measureText(c)
         paint.getFontMetrics(fontMetrics)
         val textHeight = fontMetrics.ascent + fontMetrics.descent
